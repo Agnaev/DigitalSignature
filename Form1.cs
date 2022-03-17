@@ -26,77 +26,85 @@ namespace DigitalSignature
         //зашифровать
         private void ButtonEncrypt_Click(object sender, EventArgs e)
         {
-            if ((textBox_p.Text.Length > 0) && (textBox_q.Text.Length > 0) && (sourceFilePathTextBox.Text.Length > 0) && (signFilePathTextBox.Text.Length > 0))
-            {
-                long p = Convert.ToInt64(textBox_p.Text);
-                long q = Convert.ToInt64(textBox_q.Text);
-
-                if (IsTheNumberSimple(p) && IsTheNumberSimple(q))
-                {
-                    string hash = File.ReadAllText(sourceFilePathTextBox.Text).GetHashCode().ToString();
-
-                    long n = p * q;
-                    long m = (p - 1) * (q - 1);
-                    long d = Calculate_d(m);
-                    long e_ = Calculate_e(d, m);
-
-                    List<string> result = RSA_Endoce(hash, e_, n);
-
-                    using (StreamWriter sw = new StreamWriter(signFilePathTextBox.Text))
-                    {
-                        foreach (string item in result)
-                            sw.WriteLine(item);
-                    }
-
-                    textBox_d.Text = d.ToString();
-                    textBox_n.Text = n.ToString();
-
-                    Process.Start(signFilePathTextBox.Text);
-                }
-                else
-                {
-                    MessageBox.Show("p или q - не простые числа!");
-                }
-            }
-            else
+            if (
+                textBox_p.Text.Length == 0 ||
+                textBox_q.Text.Length == 0 ||
+                sourceFilePathTextBox.Text.Length == 0 ||
+                signFilePathTextBox.Text.Length == 0
+            )
             {
                 MessageBox.Show("Введите p и q и пути к файлам!");
+                return;
             }
+            long p = Convert.ToInt64(textBox_p.Text);
+            long q = Convert.ToInt64(textBox_q.Text);
+
+            if (
+                !IsTheNumberSimple(p) ||
+                !IsTheNumberSimple(q)
+            )
+            {
+                MessageBox.Show("p или q - не простые числа!");
+                return;
+            }
+            string hash = File.ReadAllText(sourceFilePathTextBox.Text).GetHashCode().ToString();
+
+            long n = p * q;
+            long m = (p - 1) * (q - 1);
+            long d = Calculate_d(m);
+            long e_ = Calculate_e(d, m);
+
+            List<string> result = RSA_Endoce(hash, e_, n);
+
+            using (StreamWriter sw = new StreamWriter(signFilePathTextBox.Text))
+            {
+                foreach (string item in result)
+                    sw.WriteLine(item);
+            }
+
+            textBox_d.Text = d.ToString();
+            textBox_n.Text = n.ToString();
+
+            //Process.Start(signFilePathTextBox.Text);
         }
 
         //расшифровать
         private void ButtonDecipher_Click(object sender, EventArgs e)
         {
-            if ((textBox_d.Text.Length > 0) && (textBox_n.Text.Length > 0) && (sourceFilePathTextBox.Text.Length > 0) && (signFilePathTextBox.Text.Length > 0))
+            if (
+                textBox_d.Text.Length == 0 ||
+                textBox_n.Text.Length == 0 ||
+                sourceFilePathTextBox.Text.Length == 0 ||
+                signFilePathTextBox.Text.Length == 0
+            )
             {
-                long d = Convert.ToInt64(textBox_d.Text);
-                long n = Convert.ToInt64(textBox_n.Text);
+                MessageBox.Show("Введите секретный ключ и пути к файлам!");
+                return;
+            }
+            long d = Convert.ToInt64(textBox_d.Text);
+            long n = Convert.ToInt64(textBox_n.Text);
 
-                List<string> input = new List<string>();
+            List<string> input = new List<string>();
 
-                using (StreamReader sr = new StreamReader(signFilePathTextBox.Text)) { 
-                    while (!sr.EndOfStream)
-                    {
-                        input.Add(sr.ReadLine());
-                    }
-                    SetReadOnlyFile(signFilePathTextBox.Text);
-                }
-                string result = RSA_Dedoce(input, d, n);
-
-                string hash = File.ReadAllText(sourceFilePathTextBox.Text).GetHashCode().ToString();
-
-                if (result.Equals(hash))
+            using (StreamReader sr = new StreamReader(signFilePathTextBox.Text))
+            {
+                while (!sr.EndOfStream)
                 {
-                    MessageBox.Show("Файл подлинный. Подпись верна.");
+                    input.Add(sr.ReadLine());
                 }
-                else
-                {
-                    MessageBox.Show("Внимание! Файл НЕ подлинный!!!");
-                }
+                SetReadOnlyFile(signFilePathTextBox.Text);
+            }
+            string result = RSA_Dedoce(input, d, n);
+
+            string hash = File.ReadAllText(sourceFilePathTextBox.Text).GetHashCode().ToString();
+
+            if (result.Equals(hash))
+            {
+                MessageBox.Show("Файл подлинный. Подпись верна.");
             }
             else
             {
-                MessageBox.Show("Введите секретный ключ и пути к файлам!");
+                MessageBox.Show("Внимание! Файл НЕ подлинный!!!");
             }
         }
 
