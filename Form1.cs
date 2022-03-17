@@ -15,15 +15,11 @@ namespace DigitalSignature
 {
     public partial class Form1 : Form
     {
-        readonly char[] characters = new char[] { '#', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-' };
-
-
         public Form1()
         {
             InitializeComponent();
         }
 
-        //зашифровать
         private void ButtonEncrypt_Click(object sender, EventArgs e)
         {
             if (
@@ -40,35 +36,65 @@ namespace DigitalSignature
             long q = Convert.ToInt64(textBox_q.Text);
 
             if (
-                !IsTheNumberSimple(p) ||
-                !IsTheNumberSimple(q)
+                !IsNumberSimple(p) ||
+                !IsNumberSimple(q)
             )
             {
                 MessageBox.Show("p или q - не простые числа!");
                 return;
             }
-            string hash = File.ReadAllText(sourceFilePathTextBox.Text).GetHashCode().ToString();
+            List<int> fileContent = FileToIntList(sourceFilePathTextBox.Text);
 
-            long n = p * q;
+            var n = p * q;
+            var hash = GetHash(
+                fileContent,
+                Convert.ToDouble(h0.Value),
+                n
+            );
             long m = (p - 1) * (q - 1);
             long d = Calculate_d(m);
-            long e_ = Calculate_e(d, m);
 
-            List<string> result = RSA_Endoce(hash, e_, n);
+            var result = BigInteger.ModPow(
+                (BigInteger)hash,
+                d,
+                n
+            ).ToString();
+            MessageBox.Show($"Result is: {result}");
 
             using (StreamWriter sw = new StreamWriter(signFilePathTextBox.Text))
             {
-                foreach (string item in result)
-                    sw.WriteLine(item);
+                sw.WriteLine(hash);
             }
 
             textBox_d.Text = d.ToString();
             textBox_n.Text = n.ToString();
-
-            //Process.Start(signFilePathTextBox.Text);
         }
 
-        //расшифровать
+        private double GetHash(
+            List<int> file,
+            double h0,
+            long n
+        )
+        {
+            double hash = h0;
+            foreach (int i in file)
+            {
+                hash = Math.Pow(i + hash, 2) % n;
+            }
+            return hash;
+        }
+
+        private List<int> FileToIntList (string filePath)
+        {
+            string fileContent = File.ReadAllText(filePath);
+            List<int> nummedFile = new List<int>();
+            foreach (char ch in fileContent)
+            {
+                nummedFile.Add(ch);
+            }
+            return nummedFile;
+        }
+
         private void ButtonDecipher_Click(object sender, EventArgs e)
         {
             if (
@@ -81,35 +107,30 @@ namespace DigitalSignature
                 MessageBox.Show("Введите секретный ключ и пути к файлам!");
                 return;
             }
-            long d = Convert.ToInt64(textBox_d.Text);
             long n = Convert.ToInt64(textBox_n.Text);
-
-            List<string> input = new List<string>();
 
             using (StreamReader sr = new StreamReader(signFilePathTextBox.Text))
             {
-                while (!sr.EndOfStream)
-                {
-                    input.Add(sr.ReadLine());
-                }
-                SetReadOnlyFile(signFilePathTextBox.Text);
-            }
-            string result = RSA_Dedoce(input, d, n);
-
-            string hash = File.ReadAllText(sourceFilePathTextBox.Text).GetHashCode().ToString();
-
-            if (result.Equals(hash))
-            {
-                MessageBox.Show("Файл подлинный. Подпись верна.");
-            }
-            else
-            {
-                MessageBox.Show("Внимание! Файл НЕ подлинный!!!");
+                MessageBox.Show(sr.ReadLine());
+                List<int> fileContent = FileToIntList(sourceFilePathTextBox.Text);
+                var fileHash = File.ReadAllText(
+                    signFilePathTextBox.Text
+                ).TrimEnd(
+                    new char[] {
+                        '\r',
+                        '\n'
+                    }
+                );
+                var hash = GetHash(
+                    fileContent,
+                    Convert.ToDouble(h0.Value),
+                    n
+                );
+                MessageBox.Show(hash.ToString() + " " + fileHash, hash.ToString() == fileHash ? "source file" : "not source file");
             }
         }
 
-        //проверка: простое ли число?
-        private bool IsTheNumberSimple(long n)
+        private bool IsNumberSimple(long n)
         {
             if (n < 2)
             {
@@ -130,56 +151,6 @@ namespace DigitalSignature
             }
 
             return true;
-        }
-
-        //зашифровать
-        private List<string> RSA_Endoce(string s, long e, long n)
-        {
-            try
-            {
-                List<string> result = new List<string>();
-
-                for (int i = 0; i < s.Length; i++)
-                {
-                    int index = Array.IndexOf(characters, s[i]);
-
-                    result.Add(BigInteger.ModPow(index, e, n).ToString());
-                }
-
-                return result;
-            }
-            catch (Exception exc)
-            {
-                MessageBox.Show($"{exc.Message} {exc.InnerException?.InnerException?.Message ?? ""}");
-                return null;
-            }
-        }
-
-        //расшифровать
-        private string RSA_Dedoce(List<string> input, long d, long n)
-        {
-            try
-            {
-                string result = "";
-
-                BigInteger bi;
-
-                foreach (string item in input)
-                {
-                    bi = new BigInteger(Convert.ToDouble(item));
-                    bi = BigInteger.ModPow(bi, d, n);
-
-                    int index = Convert.ToInt32(bi.ToString());
-
-                    result += characters[index].ToString();
-                }
-
-                return result;
-            }
-            catch (Exception e)
-            {
-                return $"{e.Message} {e.InnerException?.InnerException?.Message ?? ""}";
-            }
         }
 
         //вычисление параметра d. d должно быть взаимно простым с m
@@ -242,35 +213,6 @@ namespace DigitalSignature
                 {
                     signFilePathTextBox.Text = ofd.FileName;
                 }
-            }
-        }
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            RSA.AtkinSieve sieve = new RSA.AtkinSieve((int)1E6);
-            List<string> dirs = Directory.GetCurrentDirectory().Split(new char[] { '\\', '/' }).ToList();
-            dirs = dirs.Take(dirs.Count() - 2).ToList();
-            string path = string.Empty;
-            dirs.ForEach(x => path += x + "\\");
-            using (StreamWriter writer = new StreamWriter(path + "primeNumbers.txt"))
-            {
-                for (int i = 0; i < sieve.IsPrimes.Length; i++)
-                {
-                    if (sieve.IsPrimes[i])
-                    {
-                        writer.WriteLine(i);
-                    }
-                }
-            }
-            Process.Start(path + "primeNumbers.txt");
-        }
-
-        private void SetReadOnlyFile(string path)
-        {
-            if (File.Exists(path))
-            {
-                FileAttributes attr = File.GetAttributes(path) | FileAttributes.ReadOnly;
-                File.SetAttributes(path, attr);
             }
         }
     }
